@@ -5,56 +5,84 @@
   <title>Votación en vivo A/B</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Estilos básicos -->
+  <!-- —— Estilos “neón” —————————————————————————— -->
   <style>
     :root {
-      --primary: #2563eb;   /* azul */
-      --secondary: #f97316; /* naranja */
+      /* Paleta neón */
+      --neon-cyan:   #00e8ff;
+      --neon-blue:   #0084ff;
+      --neon-white:  #ffffff;
       --radius: 8px;
     }
+
+    /* Fondo oscuro para resaltar brillos */
     body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background:#0d0d11;
+      color:#e5e5e5;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       text-align: center;
       margin: 0 auto;
       padding: 1.5rem;
-      max-width: 640px;
+      max-width: 680px;
     }
-    h1 { font-size: 1.8rem; margin-bottom: 1.2rem; }
+    h1 { font-size: 2rem; margin-bottom: 1.25rem; font-weight:700; }
+
+    /* Botones */
     button {
-      padding: 1rem 2rem;
-      margin: .5rem;
-      font-size: 1.25rem;
+      padding: 1rem 2.5rem;
+      margin:.6rem;
+      font-size: 1.35rem;
       border: none;
       border-radius: var(--radius);
       cursor: pointer;
-      transition: transform .1s ease;
+      letter-spacing:.5px;
+      transition: transform .12s ease;
     }
-    button:active { transform: scale(.97); }
+    button:active { transform: scale(.96); }
+    #voteA {
+      background: var(--neon-cyan);
+      color:#000;
+      box-shadow:0 0 8px var(--neon-cyan),0 0 16px var(--neon-cyan);
+    }
+    #voteB {
+      background: var(--neon-blue);
+      color:#fff;
+      box-shadow:0 0 8px var(--neon-blue),0 0 16px var(--neon-blue);
+    }
+    button:disabled{opacity:.45;cursor:default;filter:grayscale(.3);}  
 
-    /* Botones A y B con colores distintos */
-    #voteA { background: var(--primary); color:#fff; }
-    #voteB { background: var(--secondary); color:#fff; }
-    button:disabled { opacity:.6; cursor: default; }
-
-    /* Barra dual de resultado */
+    /* ——— Barra dual ——— */
     .bar-wrapper{
-      background:#e5e7eb;
+      background:#1c1c22;
       border-radius: var(--radius);
       overflow: hidden;
-      height:48px;
+      height:54px;
       display:flex;
-      margin-bottom:.75rem;
+      margin-bottom:.85rem;
+      box-shadow:0 0 6px #000 inset;
     }
-    .bar{
-      height:100%;
-      transition: width .5s ease;
+    .bar{height:100%;transition:width .6s ease;position:relative;}
+
+    /* A: degradado cyan + glow */
+    #barA{
+      background:linear-gradient(90deg, #00faff 0%, #00bfff 100%);
+      box-shadow:0 0 12px var(--neon-cyan),0 0 24px var(--neon-cyan);
     }
-    #barA{ background: var(--primary); }
-    #barB{ background: var(--secondary); }
-    .percentage{ font-weight:600; margin-top:.25rem; }
+    /* B: degradado blanco‑azul + glow */
+    #barB{
+      background:linear-gradient(90deg,#ffffff 0%, #b4d9ff 100%);
+      box-shadow:0 0 12px var(--neon-blue),0 0 24px var(--neon-blue);
+    }
+
+    /* Pequeña animación de destello al cambiar */
+    @keyframes pulseGlow{
+      0%{filter:brightness(1.4);}50%{filter:brightness(2.1);}100%{filter:brightness(1.4);} }
+    .flash{animation:pulseGlow .8s ease-out;}  
+
+    .percentage{font-weight:600;font-size:1.1rem;margin-top:.3rem;}
 
     /* Secciones */
-    #displaySection{ display:none; }
+    #displaySection{display:none;}
   </style>
 
   <!-- Firebase SDK (compat) -->
@@ -67,13 +95,12 @@
     <h1>¿Qué opción prefieres?</h1>
     <button id="voteA">Opción A</button>
     <button id="voteB">Opción B</button>
-    <p id="thanks" style="display:none; font-weight:600;">¡Gracias por participar!</p>
+    <p id="thanks" style="display:none; font-weight:600; font-size:1.1rem;">¡Gracias por participar!</p>
   </div>
 
   <!-- Sección de resultados en vivo -->
   <div id="displaySection">
     <h1>Resultados en vivo</h1>
-
     <div class="bar-wrapper">
       <div id="barA" class="bar" style="width:0%"></div>
       <div id="barB" class="bar" style="width:0%"></div>
@@ -82,7 +109,7 @@
   </div>
 
 <script>
-/* ⚙️ Sustituye por tu propia configuración Firebase */
+/* 🛠 Configuración de tu proyecto Firebase */
 const firebaseConfig = {
   apiKey: "AIzaSyDqGmqrKK910iWoOSCEv4r0yKfAhu6YFfk",
   authDomain: "livevotingab.firebaseapp.com",
@@ -92,47 +119,50 @@ const firebaseConfig = {
   messagingSenderId: "625698127271",
   appId: "1:625698127271:web:d9508697a0479d0bc44a82"
 };
-
-/* Inicia Firebase */
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const votesRef = db.ref("votes"); // {A:0,B:0}
+const votesRef = db.ref("votes");
 
-/* Detecta modo ?view=display */
+/* Modo display vs votación */
 const mode = new URLSearchParams(location.search).get("view");
 
-if (mode === "display") {
-  document.getElementById("voteSection").style.display = "none";
-  document.getElementById("displaySection").style.display = "block";
+if(mode==="display"){
+  document.getElementById("voteSection").style.display="none";
+  document.getElementById("displaySection").style.display="block";
 
-  votesRef.on("value", snap => {
-    const data = snap.val() || {A:0,B:0};
-    const total = (data.A||0)+(data.B||0);
-    const pctA = total? Math.round(100*(data.A||0)/total):0;
-    const pctB = 100 - pctA;
+  votesRef.on("value",snap=>{
+    const d=snap.val()||{A:0,B:0};
+    const tot=(d.A||0)+(d.B||0);
+    const pA=tot?Math.round(100*(d.A||0)/tot):0;
+    const pB=100-pA;
 
-    document.getElementById("barA").style.width = pctA + "%";
-    document.getElementById("barB").style.width = pctB + "%";
+    const barA=document.getElementById("barA");
+    const barB=document.getElementById("barB");
+    // Si cambió el ancho añade la animación de pulso
+    if(barA.style.width!==pA+"%"){
+      barA.classList.add("flash");
+      setTimeout(()=>barA.classList.remove("flash"),800);
+    }
+    if(barB.style.width!==pB+"%"){
+      barB.classList.add("flash");
+      setTimeout(()=>barB.classList.remove("flash"),800);
+    }
 
-    document.getElementById("labelCombined").textContent =
-      `A ${pctA} % (${data.A||0}) — B ${pctB} % (${data.B||0})`;
+    barA.style.width=pA+"%";
+    barB.style.width=pB+"%";
+    document.getElementById("labelCombined").textContent=`A ${pA} % (${d.A||0}) — B ${pB} % (${d.B||0})`;
   });
 
-} else {
-  const thankYou = () => {
-    document.getElementById("voteA").disabled = true;
-    document.getElementById("voteB").disabled = true;
-    document.getElementById("thanks").style.display = "block";
+}else{
+  // —— Modo votación ——
+  const thank=()=>{
+    voteA.disabled=voteB.disabled=true;
+    document.getElementById("thanks").style.display="block";
   };
-
-  document.getElementById("voteA").addEventListener("click", ()=> {
-    votesRef.child("A").transaction(n=> (n||0)+1);
-    thankYou();
-  });
-  document.getElementById("voteB").addEventListener("click", ()=> {
-    votesRef.child("B").transaction(n=> (n||0)+1);
-    thankYou();
-  });
+  const voteA=document.getElementById("voteA");
+  const voteB=document.getElementById("voteB");
+  voteA.addEventListener("click",()=>{votesRef.child("A").transaction(n=>(n||0)+1);thank();});
+  voteB.addEventListener("click",()=>{votesRef.child("B").transaction(n=>(n||0)+1);thank();});
 }
 </script>
 </body>
