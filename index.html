@@ -36,9 +36,19 @@
     #voteB { background: var(--secondary); color:#fff; }
     button:disabled { opacity:.6; cursor: default; }
 
-    /* Barras de resultado */
-    .bar-wrapper{ background:#e5e7eb; border-radius: var(--radius); overflow: hidden; height:40px; margin-bottom:.5rem; }
-    .bar{ height:100%; transition: width .5s ease; }
+    /* Barra dual de resultado */
+    .bar-wrapper{
+      background:#e5e7eb;
+      border-radius: var(--radius);
+      overflow: hidden;
+      height:48px;
+      display:flex;
+      margin-bottom:.75rem;
+    }
+    .bar{
+      height:100%;
+      transition: width .5s ease;
+    }
     #barA{ background: var(--primary); }
     #barB{ background: var(--secondary); }
     .percentage{ font-weight:600; margin-top:.25rem; }
@@ -47,7 +57,7 @@
     #displaySection{ display:none; }
   </style>
 
-  <!-- Firebase SDK (compat para mayor simplicidad) -->
+  <!-- Firebase SDK (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
@@ -64,75 +74,63 @@
   <div id="displaySection">
     <h1>Resultados en vivo</h1>
 
-    <div style="margin-bottom:1.5rem;">
-      <span style="font-weight:600;">Opción A</span>
-      <div class="bar-wrapper"><div id="barA" class="bar" style="width:0%"></div></div>
-      <div id="labelA" class="percentage">0 % (0 votos)</div>
+    <div class="bar-wrapper">
+      <div id="barA" class="bar" style="width:0%"></div>
+      <div id="barB" class="bar" style="width:0%"></div>
     </div>
-
-    <div>
-      <span style="font-weight:600;">Opción B</span>
-      <div class="bar-wrapper"><div id="barB" class="bar" style="width:0%"></div></div>
-      <div id="labelB" class="percentage">0 % (0 votos)</div>
-    </div>
+    <div id="labelCombined" class="percentage">A 0 % (0) — B 0 % (0)</div>
   </div>
 
 <script>
-/* ⚙️ 1) Sustituye los valores de firebaseConfig con los de tu proyecto */
+/* ⚙️ Sustituye por tu propia configuración Firebase */
 const firebaseConfig = {
   apiKey: "AIzaSyDqGmqrKK910iWoOSCEv4r0yKfAhu6YFfk",
   authDomain: "livevotingab.firebaseapp.com",
   databaseURL: "https://livevotingab-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "livevotingab",
-  storageBucket: "livevotingab.firebasestorage.app",
+  storageBucket: "livevotingab.appspot.com",
   messagingSenderId: "625698127271",
   appId: "1:625698127271:web:d9508697a0479d0bc44a82"
 };
 
-
-/* ⚙️ 2) Inicia Firebase */
+/* Inicia Firebase */
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const votesRef = db.ref("votes"); // estructura: {A:0,B:0}
+const votesRef = db.ref("votes"); // {A:0,B:0}
 
-/* 📌 Detecta el modo según ?view=display */
+/* Detecta modo ?view=display */
 const mode = new URLSearchParams(location.search).get("view");
 
 if (mode === "display") {
-  /* ------ MODO PRESENTACIÓN / RESULTADOS ------ */
   document.getElementById("voteSection").style.display = "none";
   document.getElementById("displaySection").style.display = "block";
 
-  // Escucha los cambios en la BDD y actualiza barras
   votesRef.on("value", snap => {
-    const data = snap.val() || {A:0, B:0};
-    const total = (data.A||0) + (data.B||0);
-    const pctA = total ? Math.round(100 * (data.A||0) / total) : 0;
-    const pctB = 100 - pctA; // garantiza 100 % redondo
+    const data = snap.val() || {A:0,B:0};
+    const total = (data.A||0)+(data.B||0);
+    const pctA = total? Math.round(100*(data.A||0)/total):0;
+    const pctB = 100 - pctA;
 
-    // Actualiza ancho de las barras
     document.getElementById("barA").style.width = pctA + "%";
     document.getElementById("barB").style.width = pctB + "%";
 
-    // Etiquetas
-    document.getElementById("labelA").textContent = `${pctA} % (${data.A||0} votos)`;
-    document.getElementById("labelB").textContent = `${pctB} % (${data.B||0} votos)`;
+    document.getElementById("labelCombined").textContent =
+      `A ${pctA} % (${data.A||0}) — B ${pctB} % (${data.B||0})`;
   });
 
 } else {
-  /* ------ MODO VOTACIÓN ------ */
   const thankYou = () => {
     document.getElementById("voteA").disabled = true;
     document.getElementById("voteB").disabled = true;
     document.getElementById("thanks").style.display = "block";
   };
 
-  document.getElementById("voteA").addEventListener("click", () => {
-    votesRef.child("A").transaction(n => (n||0)+1);
+  document.getElementById("voteA").addEventListener("click", ()=> {
+    votesRef.child("A").transaction(n=> (n||0)+1);
     thankYou();
   });
-  document.getElementById("voteB").addEventListener("click", () => {
-    votesRef.child("B").transaction(n => (n||0)+1);
+  document.getElementById("voteB").addEventListener("click", ()=> {
+    votesRef.child("B").transaction(n=> (n||0)+1);
     thankYou();
   });
 }
